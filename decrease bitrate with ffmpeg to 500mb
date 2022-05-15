@@ -1,0 +1,49 @@
+@echo off
+echo ----------------------------------------
+SETLOCAL enabledelayedexpansion
+chcp 65001>nul
+REM === 文字コードをUTFに設定。
+pushd %~dp0
+REM ↑このバッチのディレクトリをセット（以下のディレクトリのファイルを使用可能）
+
+REM === ドラッグファイル名でフォルダー作成
+
+  for %%a in (%*) do (
+  set folder=%%~na
+  set folder=!folder:~0,14!
+  if not exist "!folder!" (
+	  md "%~dp0\!folder!"
+	  )
+)
+
+REM === 動画デュレーションを取得
+    for %%F in (%*) do (
+        for /f "tokens=2-5 delims=:., " %%a in (
+	      'ffmpeg -i "%%~nxF" 2^>^&1 ^| find "Duration:"'
+	      ) do (
+              set /a "duration=1%%a*3600 + 1%%b*60 + 1%%c - 366100"
+              )
+        set /a filesize=500
+        set /a bitrate=!filesize!*8192/!duration!
+        set /a finalbit=!bitrate!-128
+	
+
+REM === 動画をfor処理          
+    for %%a in (%*) do (
+	"ffmpeg" -y -i "%%F" -c:v libx264 -b:v !finalbit!k -pass 1 -an -f null /dev/null && \
+	"ffmpeg" -y -i "%%F" -c:v libx264 -b:v !finalbit!k -pass 2 -c:a aac -b:a 128k "%~dp0\!folder!\%%~nxF"
+	)
+)
+REM === tempファイルを消す
+
+    del %~dp0\ffmpeg2pass-0.log
+    del %~dp0\ffmpeg2pass-0.log.mbtree
+
+echo ----------------------------------------
+echo Duration: !duration!seconds
+echo Filesize: !filesize!MB
+echo Bitrate: !bitrate!kbps
+echo Bitrate (without sound): !finalbit!kbps
+echo DONE!!
+echo ----------------------------------------
+pause>nul
